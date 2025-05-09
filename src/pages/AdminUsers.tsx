@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -38,99 +38,70 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal, Search, Users, Filter, UserCheck } from "lucide-react";
 
-// Mock data - would be fetched from your API
-const mockUsers = [
-  {
-    id: 1,
-    name: "Jessica Smith",
-    email: "jessica@example.com",
-    status: "active",
-    joinDate: "2023-03-12",
-    matchCount: 7,
-    age: 29,
-    gender: "Female",
-    location: "Los Angeles, CA"
-  },
-  {
-    id: 2,
-    name: "Michael Johnson",
-    email: "michael@example.com",
-    status: "active",
-    joinDate: "2023-04-05",
-    matchCount: 5,
-    age: 34,
-    gender: "Male",
-    location: "New York, NY"
-  },
-  {
-    id: 3,
-    name: "Sarah Williams",
-    email: "sarah@example.com",
-    status: "inactive",
-    joinDate: "2023-02-18",
-    matchCount: 2,
-    age: 27,
-    gender: "Female", 
-    location: "Chicago, IL"
-  },
-  {
-    id: 4,
-    name: "David Brown",
-    email: "david@example.com",
-    status: "active",
-    joinDate: "2023-05-20",
-    matchCount: 4,
-    age: 31,
-    gender: "Male",
-    location: "Miami, FL"
-  },
-  {
-    id: 5,
-    name: "Emily Davis",
-    email: "emily@example.com",
-    status: "active",
-    joinDate: "2023-03-25",
-    matchCount: 9,
-    age: 26,
-    gender: "Female",
-    location: "Seattle, WA"
-  },
-  {
-    id: 6,
-    name: "Alex Lee",
-    email: "alex@example.com",
-    status: "inactive",
-    joinDate: "2023-04-10",
-    matchCount: 0,
-    age: 33,
-    gender: "Non-binary",
-    location: "Portland, OR"
-  },
-  {
-    id: 7,
-    name: "Taylor Wilson",
-    email: "taylor@example.com",
-    status: "active",
-    joinDate: "2023-05-05",
-    matchCount: 3,
-    age: 30,
-    gender: "Female",
-    location: "Austin, TX"
-  }
-];
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+  status: string;
+  createdAt: string;
+  matchCount: number;
+  age: number;
+  gender: string;
+  location: string;
+}
 
 const AdminUsers = () => {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [users, setUsers] = useState(mockUsers);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${API_BASE_URL}/api/user/admin/users`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      
+      const data = await response.json();
+      // The API returns the array directly, no need to wrap it
+      setUsers(data);
+      setLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      setLoading(false);
+    }
+  };
 
   // Filter users based on search term
-  const filteredUsers = users.filter((user) => {
-    return (
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.location.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  });
+  const filteredUsers = users.filter(user =>
+    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.location.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentUsers = filteredUsers.slice(indexOfFirstItem, indexOfLastItem);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   return (
     <div className="space-y-6">
@@ -204,8 +175,8 @@ const AdminUsers = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => (
-                <TableRow key={user.id}>
+              {currentUsers.map((user) => (
+                <TableRow key={user._id}>
                   <TableCell className="font-medium">
                     <div className="flex items-center">
                       <Avatar className="h-8 w-8 mr-2">
@@ -226,7 +197,7 @@ const AdminUsers = () => {
                       {user.status}
                     </Badge>
                   </TableCell>
-                  <TableCell>{user.joinDate}</TableCell>
+                  <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell>{user.location}</TableCell>
                   <TableCell>{user.age}</TableCell>
                   <TableCell>
@@ -256,28 +227,54 @@ const AdminUsers = () => {
               ))}
             </TableBody>
           </Table>
-          <Pagination className="mt-4">
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious href="#" />
-              </PaginationItem>
-              <PaginationItem>
-                <PaginationLink href="#" isActive>1</PaginationLink>
-              </PaginationItem>
-              <PaginationItem>
-                <PaginationLink href="#">2</PaginationLink>
-              </PaginationItem>
-              <PaginationItem>
-                <PaginationLink href="#">3</PaginationLink>
-              </PaginationItem>
-              <PaginationItem>
-                <PaginationEllipsis />
-              </PaginationItem>
-              <PaginationItem>
-                <PaginationNext href="#" />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
+          <div className="mt-4">
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    isActive={false}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentPage > 1) {
+                        handlePageChange(currentPage - 1);
+                      }
+                    }}
+                  >
+                    Previous
+                  </PaginationPrevious>
+                </PaginationItem>
+                {Array.from({ length: totalPages }, (_, i) => (
+                  <PaginationItem key={i + 1}>
+                    <PaginationLink
+                      href="#"
+                      isActive={currentPage === i + 1}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handlePageChange(i + 1);
+                      }}
+                    >
+                      {i + 1}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    isActive={false}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentPage < totalPages) {
+                        handlePageChange(currentPage + 1);
+                      }
+                    }}
+                  >
+                    Next
+                  </PaginationNext>
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -2,35 +2,133 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts';
-
-// Sample data - would be replaced with real data from your API
-const userActivityData = [
-  { name: 'Jan', users: 400, matches: 240 },
-  { name: 'Feb', users: 300, matches: 139 },
-  { name: 'Mar', users: 200, matches: 180 },
-  { name: 'Apr', users: 278, matches: 190 },
-  { name: 'May', users: 189, matches: 120 },
-  { name: 'Jun', users: 239, matches: 170 },
-  { name: 'Jul', users: 349, matches: 230 },
-];
-
-const genderDistribution = [
-  { name: 'Male', value: 540 },
-  { name: 'Female', value: 620 },
-  { name: 'Non-binary', value: 120 },
-];
-
-const ageDistribution = [
-  { name: '18-24', users: 120 },
-  { name: '25-34', users: 280 },
-  { name: '35-44', users: 200 },
-  { name: '45-54', users: 180 },
-  { name: '55+', users: 60 },
-];
+import { useEffect, useState } from 'react';
 
 const GENDER_COLORS = ['#5EA9FF', '#FF66C4', '#A78BFA'];
 
+interface UserActivity {
+  name: string;
+  users: number;
+  matches: number;
+}
+
+interface GenderDistribution {
+  name: string;
+  value: number;
+}
+
+interface AgeDistribution {
+  name: string;
+  users: number;
+}
+
+interface DashboardStats {
+  totalUsers: number;
+  matchesMade: number;
+  activeEvents: number;
+  messagesSent: number;
+}
+
 const AdminDashboard = () => {
+  const [userActivity, setUserActivity] = useState<UserActivity[]>([]);
+  const [genderData, setGenderData] = useState<GenderDistribution[]>([]);
+  const [ageData, setAgeData] = useState<AgeDistribution[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        
+        // Make requests with proper headers
+        const headers = {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        };
+
+        // Make requests with proper headers
+        const [activityRes, matchesRes, messagesRes, eventsRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/analytics/activity`, { headers }),
+          fetch(`${API_BASE_URL}/api/analytics/matches`, { headers }),
+          fetch(`${API_BASE_URL}/api/analytics/messages`, { headers }),
+          fetch(`${API_BASE_URL}/api/analytics/events`, { headers })
+        ]);
+
+        // Check response status
+        if (!activityRes.ok || !matchesRes.ok || !messagesRes.ok || !eventsRes.ok) {
+          throw new Error('API request failed');
+        }
+
+        // Parse responses
+        const [activityData, matchesData, messagesData, eventsData] = await Promise.all([
+          activityRes.json(),
+          matchesRes.json(),
+          messagesRes.json(),
+          eventsRes.json()
+        ]);
+
+        // Check if responses are in the expected format
+        if (!activityData?.success || !matchesData?.success || !messagesData?.success || !eventsData?.success) {
+          throw new Error('Invalid API response format');
+        }
+
+        // Transform data to match our state structure
+        const transformedActivity = activityData.data.map(item => ({
+          name: item._id,
+          users: item.users || 0,
+          matches: item.matches || 0
+        }));
+
+        const transformedMatches = matchesData.data.map(item => ({
+          name: item._id,
+          count: item.count || 0
+        }));
+
+        const transformedMessages = messagesData.data.map(item => ({
+          name: item._id,
+          count: item.count || 0
+        }));
+
+        const transformedEvents = eventsData.data.map(item => ({
+          name: item._id,
+          count: item.count || 0
+        }));
+
+        // Set state with the transformed data
+        setUserActivity(transformedActivity);
+        setGenderData(transformedMatches);
+        setAgeData(transformedMessages);
+        setStats(eventsData.data);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching analytics:', err);
+        setError('Failed to fetch analytics data');
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-miamour-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center p-4">
+        <h2 className="text-lg font-semibold text-red-500">Error</h2>
+        <p className="text-muted-foreground">{error}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -60,9 +158,9 @@ const AdminDashboard = () => {
             </svg>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,280</div>
+            <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
             <p className="text-xs text-muted-foreground">
-              +20% from last month
+              +{stats?.totalUsers ? '20%' : '0%'} from last month
             </p>
           </CardContent>
         </Card>
@@ -84,9 +182,9 @@ const AdminDashboard = () => {
             </svg>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">523</div>
+            <div className="text-2xl font-bold">{stats?.matchesMade || 0}</div>
             <p className="text-xs text-muted-foreground">
-              +12% from last month
+              +{stats?.matchesMade ? '12%' : '0%'} from last month
             </p>
           </CardContent>
         </Card>
@@ -111,9 +209,9 @@ const AdminDashboard = () => {
             </svg>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
+            <div className="text-2xl font-bold">{stats?.activeEvents || 0}</div>
             <p className="text-xs text-muted-foreground">
-              +2 new this week
+              +{stats?.activeEvents ? '2' : '0'} new this week
             </p>
           </CardContent>
         </Card>
@@ -135,9 +233,9 @@ const AdminDashboard = () => {
             </svg>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3,729</div>
+            <div className="text-2xl font-bold">{stats?.messagesSent || 0}</div>
             <p className="text-xs text-muted-foreground">
-              +40% from last month
+              +{stats?.messagesSent ? '40%' : '0%'} from last month
             </p>
           </CardContent>
         </Card>
@@ -161,7 +259,7 @@ const AdminDashboard = () => {
               <div className="h-80 mt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
-                    data={userActivityData}
+                    data={userActivity}
                     margin={{
                       top: 5,
                       right: 30,
@@ -207,7 +305,7 @@ const AdminDashboard = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={genderDistribution}
+                      data={genderData}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -216,7 +314,7 @@ const AdminDashboard = () => {
                       fill="#8884d8"
                       dataKey="value"
                     >
-                      {genderDistribution.map((entry, index) => (
+                      {genderData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={GENDER_COLORS[index % GENDER_COLORS.length]} />
                       ))}
                     </Pie>
@@ -239,7 +337,7 @@ const AdminDashboard = () => {
               <div className="h-80 mt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={ageDistribution}
+                    data={ageData}
                     margin={{
                       top: 5,
                       right: 30,
